@@ -5,7 +5,7 @@
 LiquidCrystal lcd(7, 6, 5, 4, 3, 2);
 const uint8_t PIN_CS = 10, BUTTON_UP = 8, BUTTON_DOWN = 9;
 byte row_to_print = 0, btn_up_press_flag = 0, btn_down_press_flag = 0;
-char buf[16];
+char buf[17];
 
 unsigned long cur_file_pos = 0, cur_file_size, btn_up_last_press = 0, btn_down_last_press = 0;
 File cur_file;
@@ -23,21 +23,25 @@ void lcd_println(char str[])
   row_to_print++;
 }
 
-byte file_read_block(File &file, char str[], unsigned long pos)//read 16 chars from file after given position
+byte file_read_block(File &file, char str[], unsigned long block_size, unsigned long pos)//read block_size chars from file after given position
 {
   //unsigned long file_size = file.size();
-  unsigned long end_pos = min(pos + 16, file.size()), i = 0;
+  unsigned long end_pos = min(pos + block_size, file.size()), i;
+  for (i = 0; i < 17; i++)
+    str[i] = ' ';
   if (pos > end_pos)
   {
     return 0;
   }
   file.seek(pos);
+  i = 0;
   do
   {
     str[i] = file.read();
     i++;
   } while (pos + i < end_pos);
-  Serial.println("i = " + String(i - 1));
+  //str[pos + i] = '\0';
+  //Serial.println("i = " + String(i - 1));
   return 1;
 }
 
@@ -60,10 +64,10 @@ void setup() {
   cur_file_size = cur_file.size();
   if (cur_file)
   {
-    file_read_block(cur_file, buf, cur_file_pos);
+    file_read_block(cur_file, buf, 16, cur_file_pos);
     lcd_println(buf);
     cur_file_pos += 16;
-    file_read_block(cur_file, buf, cur_file_pos);
+    file_read_block(cur_file, buf, 16, cur_file_pos);
     lcd_println(buf);
     cur_file_pos += 16;
   }
@@ -72,14 +76,15 @@ void setup() {
 
 void scrollUp()
 {
-  if (cur_file_pos > 0)
+  if (cur_file_pos >= 64)
   {
+    Serial.println(cur_file_pos - 64);
     cur_file_pos -= 64;
-    file_read_block(cur_file, buf, cur_file_pos);
+    file_read_block(cur_file, buf, 16, cur_file_pos);
     lcd_println(buf);
     cur_file_pos += 16;
     
-    file_read_block(cur_file, buf, cur_file_pos);
+    file_read_block(cur_file, buf, 16, cur_file_pos);
     lcd_println(buf);
     cur_file_pos += 16;
   }
@@ -87,16 +92,27 @@ void scrollUp()
 
 void scrollDown()
 {
-  //Serial.println("file pos:" + String(cur_file_pos));
-  if (cur_file_pos + 31 < cur_file_size)
+  for (byte i = 0; i < 2; i++)
   {
-    file_read_block(cur_file, buf, cur_file_pos);
-    lcd_println(buf);
-    cur_file_pos += 16;
-
-    file_read_block(cur_file, buf, cur_file_pos);
-    lcd_println(buf);
-    cur_file_pos += 16;
+    if (cur_file_pos + 15 < cur_file_size)
+    {
+      Serial.println("read 16");
+      file_read_block(cur_file, buf, 16, cur_file_pos);
+      lcd_println(buf);
+      cur_file_pos += 16;
+    } else if (cur_file_pos < cur_file_size)
+    {
+      Serial.println("read < 16");
+      unsigned long bs = cur_file_size - cur_file_pos;
+      file_read_block(cur_file, buf, bs, cur_file_pos);
+      lcd_println(buf);
+      cur_file_pos += 16;
+      return;
+    } else
+    {
+      Serial.println("ohh");
+      return;
+    }
   }
 }
 
